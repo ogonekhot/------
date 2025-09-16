@@ -1,0 +1,7 @@
+aiogram
+apscheduler
+aiomysql
+arrow
+playwright
+bleach
+beautifulsoup4
