@@ -4,6 +4,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+import arrow
 import logging
 import asyncio
 import config
@@ -142,7 +143,21 @@ async def buttons_manager(callback: types.CallbackQuery):
 
         text = f'{await tm.this_day()} - {await tm.week_color(week)}\n\n'
         for num in schedule[cs[1]][await tm.this_day()].keys():
-            text += f'{num}-я пара {schedule[cs[1]][await tm.this_day()][num]['time']['start']} - {schedule[cs[1]][await tm.this_day()][num]['time']['end']}\n{schedule[cs[1]][await tm.this_day()][num][await tm.week_color(week)]['title']}\n{schedule[cs[1]][await tm.this_day()][num][await tm.week_color(week)]['teacher']}\n{schedule[cs[1]][await tm.this_day()][num][await tm.week_color(week)]['room']} {schedule[cs[1]][await tm.this_day()][num][await tm.week_color(week)]['type']}\n\n'
+            room = str(schedule[cs[1]][await tm.this_day()][num][await tm.week_color('now')]['room'])
+            split_room = str(schedule[cs[1]][await tm.this_day()][num][await tm.week_color('now')]['room']).split('-')
+            try:
+                for housing in adresses.keys():
+                    for flor in adresses[housing]:
+                        if len(split_room) == 1:
+                            if int(room) > int(adresses[housing][flor]["min"]) and int(room) < int(adresses[housing][flor]["max"]):
+                                adres = housing
+                        else:
+                            if split_room[0] in housing:
+                                adres = housing
+            except:
+                adres = ''
+
+            text += f'{num}-я пара {schedule[cs[1]][await tm.this_day()][num]['time']['start']} - {schedule[cs[1]][await tm.this_day()][num]['time']['end']}\n{schedule[cs[1]][await tm.this_day()][num][await tm.week_color(week)]['title']}\n{schedule[cs[1]][await tm.this_day()][num][await tm.week_color(week)]['teacher']}\n{adres} {room} {schedule[cs[1]][await tm.this_day()][num][await tm.week_color(week)]['type']}\n\n'
     else:
         buttons.row(InlineKeyboardButton(text = 'Ок', callback_data = f'back'))
         text = 'В разработке...'
@@ -182,7 +197,7 @@ async def safe_daily_message(bot, group, num):
     try:
         users = await dbm.users_on_alarms(group)
         try:
-            room = int(schedule[group][await tm.this_day()][str(int(num) + 1)][await tm.week_color('now')]['room'])
+            room = str(schedule[group][await tm.this_day()][str(int(num) + 1)][await tm.week_color('now')]['room'])
             split_room = str(schedule[group][await tm.this_day()][str(int(num) + 1)][await tm.week_color('now')]['room']).split('')
             type = schedule[group][await tm.this_day()][str(int(num) + 1)][await tm.week_color('now')]['type']
             work = schedule[group][await tm.this_day()][str(int(num) + 1)][await tm.week_color('now')]['title']
@@ -190,22 +205,22 @@ async def safe_daily_message(bot, group, num):
         except Exception as e:
             return
         
-        try:
-            for housing in adresses.keys():
-                for flor in adresses[housing]:
-                    if len(split_room) == 1:
-                        if room > int(adresses[housing][flor]["min"]) and room < int(adresses[housing][flor]["max"]):
-                            adres = housing
-                    elif split_room[1] == '-':
-                        if split_room[0] in housing:
-                            adres = housing
-        except:
-            adres = 'Я хуй знает где '
+        adres = ''
+
+        for housing in adresses.keys():
+            for flor in adresses[housing]:
+                if split_room[0] != 'Л':
+                    if int(room) > int(adresses[housing][flor]["min"]) and int(room) < int(adresses[housing][flor]["max"]):
+                        adres = housing
+                elif split_room[1] == '-':
+                    if split_room[0] in housing:
+                        adres = housing
 
         buttons = InlineKeyboardBuilder()
         buttons.row(InlineKeyboardButton(text = 'Ок', callback_data = f'ok'))
         # for user_id in users:
         await bot.send_message(5207843376, f"{adres} {room} {type}\n{work}\n{teach}", parse_mode = "Markdown", reply_markup = buttons.as_markup())
+        scheduler.remove_job(f'alarm_{group}_{schedule[group][await tm.this_day()][str(int(num) + 1)]['time']['end']}')
 
     except Exception as e:
         print(e)
@@ -216,10 +231,6 @@ async def setup_scheduler(bot):
             if num != len(schedule[group][await tm.this_day()]):
                 time = schedule[group][await tm.this_day()][num]['time']['end']
                 hour, minute = map(int, time.split(':'))
-
-                # print(scheduler.get_job(f'alarm_{group}_{time}'))
-                # for job in range(0, len(scheduler.get_jobs()) - 1):
-                print(scheduler.get_jobs())
 
                 scheduler.add_job(
                     safe_daily_message,
